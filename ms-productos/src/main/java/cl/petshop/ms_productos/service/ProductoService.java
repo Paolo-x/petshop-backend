@@ -122,7 +122,6 @@ public class ProductoService {
 
         String codigo = request.codigo().trim();
 
-        // Comprobar que el codigo no este repetido
         if (productoRepository.existsByCodigoIgnoreCase(codigo)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -130,18 +129,69 @@ public class ProductoService {
             );
         }
 
-        // Comprobar que la categoria exista
-        Categoria categoria = categoriaRepository
-                .findById(request.categoriaId())
+        Categoria categoria = buscarCategoria(request.categoriaId());
+
+        Producto producto = new Producto();
+
+        asignarDatos(producto, request, categoria);
+
+        return productoRepository.save(producto);
+    }
+
+    // Actualizar un producto existente
+    @Transactional
+    public Producto actualizar(Long id, ProductoRequest request) {
+
+        validarDatosProducto(request);
+
+        Producto producto = buscarPorId(id);
+
+        String codigo = request.codigo().trim();
+
+        // Comprobar si el codigo pertenece a otro producto
+        productoRepository.findByCodigoIgnoreCase(codigo)
+                .ifPresent(existente -> {
+                    if (!existente.getId().equals(id)) {
+                        throw new ResponseStatusException(
+                                HttpStatus.CONFLICT,
+                                "Ya existe otro producto con ese codigo"
+                        );
+                    }
+                });
+
+        Categoria categoria = buscarCategoria(request.categoriaId());
+
+        asignarDatos(producto, request, categoria);
+
+        return productoRepository.save(producto);
+    }
+
+    // Eliminar un producto
+    @Transactional
+    public void eliminar(Long id) {
+
+        Producto producto = buscarPorId(id);
+
+        productoRepository.delete(producto);
+    }
+
+    // Buscar y validar la categoria
+    private Categoria buscarCategoria(Long categoriaId) {
+
+        return categoriaRepository.findById(categoriaId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "La categoria indicada no existe"
                 ));
+    }
 
-        // Crear el objeto Producto
-        Producto producto = new Producto();
+    // Asignar datos al producto
+    private void asignarDatos(
+            Producto producto,
+            ProductoRequest request,
+            Categoria categoria) {
 
-        producto.setCodigo(codigo);
+        producto.setCodigo(request.codigo().trim());
         producto.setNombre(request.nombre().trim());
         producto.setDescripcion(request.descripcion());
         producto.setPrecio(request.precio());
@@ -150,12 +200,9 @@ public class ProductoService {
         producto.setStockCritico(request.stockCritico());
         producto.setImagenUrl(request.imagenUrl());
         producto.setCategoria(categoria);
-
-        // Guardar en MySQL
-        return productoRepository.save(producto);
     }
 
-    // Validaciones de negocio para crear productos
+    // Validar los datos del producto
     private void validarDatosProducto(ProductoRequest request) {
 
         if (request == null) {
