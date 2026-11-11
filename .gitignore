@@ -1,0 +1,16 @@
+
+# Archivos generados
+**/target/
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Archivos de editores
+.vscode/
+.idea/
+
+# Archivos temporales
+*.log
+*.tmp
