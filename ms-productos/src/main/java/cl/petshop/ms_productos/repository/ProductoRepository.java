@@ -34,4 +34,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     @Query("SELECT p FROM Producto p WHERE p.stock <= p.stockCritico")
     List<Producto> buscarProductosConStockCritico();
 
+    // Comprobar si una categoria tiene productos asociados
+    boolean existsByCategoriaId(Long categoriaId);
+
 }
