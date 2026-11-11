@@ -20,7 +20,6 @@ public class SecurityConfig {
             HttpSecurity http) throws Exception {
 
         http
-            // Configuracion para una API sin sesiones
             .csrf(AbstractHttpConfigurer::disable)
 
             .sessionManagement(session ->
@@ -31,8 +30,15 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
 
-                // El stock critico sera exclusivo
-                // para administradores cuando implementemos JWT
+                // Documentacion Swagger publica
+                .requestMatchers(
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                    "/v3/api-docs",
+                    "/v3/api-docs/**"
+                ).permitAll()
+
+                // Stock critico protegido
                 .requestMatchers(
                     HttpMethod.GET,
                     "/api/v1/productos/stock-critico"
@@ -53,7 +59,7 @@ public class SecurityConfig {
                     "/api/v1/productos/codigo/*"
                 ).permitAll()
 
-                // Las demas operaciones siguen bloqueadas
+                // Operaciones administrativas bloqueadas
                 // hasta implementar JWT
                 .anyRequest().denyAll()
             )
