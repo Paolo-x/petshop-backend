@@ -20,7 +20,7 @@ public class SecurityConfig {
             HttpSecurity http) throws Exception {
 
         http
-            // La API usara JWT, no sesiones tradicionales
+            // Configuracion para una API sin sesiones
             .csrf(AbstractHttpConfigurer::disable)
 
             .sessionManagement(session ->
@@ -29,22 +29,35 @@ public class SecurityConfig {
                 )
             )
 
-            // Configuracion temporal de permisos
             .authorizeHttpRequests(auth -> auth
 
-                // Consultar categorias es publico
+                // El stock critico sera exclusivo
+                // para administradores cuando implementemos JWT
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/productos/stock-critico"
+                ).denyAll()
+
+                // Consultas publicas de categorias
                 .requestMatchers(
                     HttpMethod.GET,
                     "/api/v1/categorias",
                     "/api/v1/categorias/*"
                 ).permitAll()
 
-                // Bloquear las demas operaciones
+                // Consultas publicas de productos
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/productos",
+                    "/api/v1/productos/*",
+                    "/api/v1/productos/codigo/*"
+                ).permitAll()
+
+                // Las demas operaciones siguen bloqueadas
                 // hasta implementar JWT
                 .anyRequest().denyAll()
             )
 
-            // No utilizaremos login tradicional
             .httpBasic(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable);
 
