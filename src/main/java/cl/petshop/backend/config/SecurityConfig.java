@@ -70,10 +70,16 @@ public class SecurityConfig {
                     "/api/v1/usuarios/**"
                 ).hasRole("ADMINISTRADOR")
 
-                // Los clientes pueden crear pedidos
+                // Solo los clientes pueden crear pedidos
                 .requestMatchers(
                     HttpMethod.POST,
                     "/api/v1/pedidos"
+                ).hasRole("CLIENTE")
+
+                // Solo los clientes pueden realizar pagos simulados
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/v1/pedidos/*/pagar-simulado"
                 ).hasRole("CLIENTE")
 
                 // Administradores y vendedores consultan todos los pedidos
@@ -101,11 +107,11 @@ public class SecurityConfig {
                 // Permitir respuestas de error
                 .requestMatchers("/error").permitAll()
 
-                // Bloquear las rutas no configuradas
+                // Bloquear rutas no configuradas
                 .anyRequest().denyAll()
             )
 
-            // Validar los tokens JWT
+            // Validar tokens JWT
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt
                     .decoder(jwtService.obtenerDecodificador())
