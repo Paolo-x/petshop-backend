@@ -3,6 +3,7 @@ package cl.petshop.backend.service;
 
 import cl.petshop.backend.model.Categoria;
 import cl.petshop.backend.repository.CategoriaRepository;
+import cl.petshop.backend.repository.ProductoRepository;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,9 +16,14 @@ import java.util.List;
 public class CategoriaService {
 
     private final CategoriaRepository categoriaRepository;
+    private final ProductoRepository productoRepository;
 
-    public CategoriaService(CategoriaRepository categoriaRepository) {
+    public CategoriaService(
+            CategoriaRepository categoriaRepository,
+            ProductoRepository productoRepository) {
+
         this.categoriaRepository = categoriaRepository;
+        this.productoRepository = productoRepository;
     }
 
     // Listar todas las categorias
@@ -29,7 +35,6 @@ public class CategoriaService {
     // Buscar una categoria por ID
     @Transactional(readOnly = true)
     public Categoria buscarPorId(Long id) {
-
         return categoriaRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -53,7 +58,6 @@ public class CategoriaService {
         }
 
         Categoria categoria = new Categoria();
-
         categoria.setNombre(nombreLimpio);
         categoria.setImagen(limpiarImagen(imagen));
 
@@ -72,7 +76,6 @@ public class CategoriaService {
 
         categoriaRepository.findByNombreIgnoreCase(nombreLimpio)
                 .ifPresent(existente -> {
-
                     if (!existente.getId().equals(id)) {
                         throw new ResponseStatusException(
                                 HttpStatus.CONFLICT,
@@ -92,6 +95,14 @@ public class CategoriaService {
     public void eliminar(Long id) {
 
         Categoria categoria = buscarPorId(id);
+
+        // No permitir eliminar categorias con productos
+        if (productoRepository.existsByCategoriaId(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede eliminar una categoria que tiene productos"
+            );
+        }
 
         categoriaRepository.delete(categoria);
     }
