@@ -64,20 +64,48 @@ public class SecurityConfig {
                     "/api/v1/categorias/**"
                 ).hasRole("ADMINISTRADOR")
 
-                // Solo administradores pueden gestionar usuarios
+                // Solo administradores gestionan usuarios
                 .requestMatchers(
                     "/api/v1/usuarios",
                     "/api/v1/usuarios/**"
                 ).hasRole("ADMINISTRADOR")
 
+                // Los clientes pueden crear pedidos
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/v1/pedidos"
+                ).hasRole("CLIENTE")
+
+                // Administradores y vendedores consultan todos los pedidos
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/pedidos"
+                ).hasAnyRole("ADMINISTRADOR", "VENDEDOR")
+
+                // Los clientes consultan su historial de compras
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/pedidos/mis-pedidos"
+                ).hasRole("CLIENTE")
+
+                // Consultar un pedido individual
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/v1/pedidos/*"
+                ).hasAnyRole(
+                    "CLIENTE",
+                    "VENDEDOR",
+                    "ADMINISTRADOR"
+                )
+
                 // Permitir respuestas de error
                 .requestMatchers("/error").permitAll()
 
-                // Bloquear rutas no configuradas
+                // Bloquear las rutas no configuradas
                 .anyRequest().denyAll()
             )
 
-            // Validar tokens JWT
+            // Validar los tokens JWT
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt
                     .decoder(jwtService.obtenerDecodificador())
@@ -96,7 +124,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // Convertir el rol del token en un permiso de Spring Security
+    // Convertir el rol del JWT en un permiso de Spring Security
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
 
         JwtGrantedAuthoritiesConverter roles =
