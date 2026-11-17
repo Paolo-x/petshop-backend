@@ -64,6 +64,12 @@ public class SecurityConfig {
                     "/api/v1/categorias/**"
                 ).hasRole("ADMINISTRADOR")
 
+                // Solo administradores pueden gestionar usuarios
+                .requestMatchers(
+                    "/api/v1/usuarios",
+                    "/api/v1/usuarios/**"
+                ).hasRole("ADMINISTRADOR")
+
                 // Permitir respuestas de error
                 .requestMatchers("/error").permitAll()
 
