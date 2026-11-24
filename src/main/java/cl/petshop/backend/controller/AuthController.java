@@ -11,6 +11,8 @@ import cl.petshop.backend.service.UsuarioService;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -42,7 +44,6 @@ public class AuthController {
         usuario.setApellidos(datos.apellidos());
         usuario.setCorreo(datos.correo());
 
-        // El servicio asigna siempre el rol CLIENTE
         return usuarioService.registrarCliente(
                 usuario,
                 datos.contrasena()
@@ -72,7 +73,6 @@ public class AuthController {
             throw e;
         }
 
-        // Comprobar la contrasena con BCrypt
         if (!usuarioService.comprobarContrasena(
                 usuario,
                 datos.contrasena())) {
@@ -83,7 +83,6 @@ public class AuthController {
             );
         }
 
-        // Generar el token JWT
         String token = jwtService.generarToken(usuario);
 
         return new AuthResponse(
@@ -94,6 +93,16 @@ public class AuthController {
                 usuario.getApellidos(),
                 usuario.getCorreo(),
                 usuario.getRol().name()
+        );
+    }
+
+    // Consultar el perfil del usuario autenticado
+    @GetMapping("/perfil")
+    public Usuario perfil(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        return usuarioService.buscarPorCorreo(
+                jwt.getSubject()
         );
     }
 }
