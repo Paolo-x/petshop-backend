@@ -2,29 +2,52 @@
 package cl.petshop.backend.config;
 
 import cl.petshop.backend.security.JwtService;
+import jakarta.servlet.http.HttpServletResponse;
+import tools.jackson.databind.json.JsonMapper;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.access.AccessDeniedHandler;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+import static org.springframework.security.authorization.AuthorityAuthorizationManager.hasRole;
 
 @Configuration
 public class SecurityConfig {
 
     private final JwtService jwtService;
+    private final JsonMapper json;
 
-    public SecurityConfig(JwtService jwtService) {
+    public SecurityConfig(JwtService jwtService, JsonMapper json) {
         this.jwtService = jwtService;
+        this.json = json;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
             throws Exception {
+
+        AuthenticationEntryPoint sinSesion = (solicitud, respuesta, error) -> {
+            respuesta.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+            responderError(respuesta, HttpStatus.UNAUTHORIZED, "Inicia sesión para continuar");
+        };
+        AccessDeniedHandler sinPermiso = (solicitud, respuesta, error) ->
+                responderError(respuesta, HttpStatus.FORBIDDEN, "No tienes permiso");
 
         http
             .csrf(AbstractHttpConfigurer::disable)
@@ -44,20 +67,25 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").authenticated()
 
-                // Perfil del usuario autenticado
+                // Perfil en la tienda y en el panel de administración.
                 .requestMatchers(
                     HttpMethod.GET,
                     "/api/v1/auth/perfil"
-                ).authenticated()
+                ).hasAnyRole("ADMINISTRADOR", "CLIENTE")
 
-                // Consultar productos y categorias
+                // El listado, los filtros y el detalle de productos son públicos.
                 .requestMatchers(
                     HttpMethod.GET,
                     "/api/v1/productos",
-                    "/api/v1/productos/**",
+                    "/api/v1/productos/**"
+                ).permitAll()
+
+                // Las categorías son públicas en la tienda; no forman parte de la vista de ventas.
+                .requestMatchers(
+                    HttpMethod.GET,
                     "/api/v1/categorias",
                     "/api/v1/categorias/**"
-                ).permitAll()
+                ).access(AuthorizationManagers.not(hasRole("VENDEDOR")))
 
                 // Solo administradores modifican productos
                 // y categorias
@@ -118,7 +146,13 @@ public class SecurityConfig {
                 .anyRequest().denyAll()
             )
 
+            .exceptionHandling(errores -> errores
+                .authenticationEntryPoint(sinSesion)
+                .accessDeniedHandler(sinPermiso)
+            )
             .oauth2ResourceServer(oauth2 -> oauth2
+                .authenticationEntryPoint(sinSesion)
+                .accessDeniedHandler(sinPermiso)
                 .jwt(jwt -> jwt
                     .decoder(jwtService.obtenerDecodificador())
                     .jwtAuthenticationConverter(
@@ -131,6 +165,14 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable);
 
         return http.build();
+    }
+
+    private void responderError(HttpServletResponse respuesta, HttpStatus estado, String detalle) throws IOException {
+        respuesta.setStatus(estado.value());
+        respuesta.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        respuesta.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        json.writeValue(respuesta.getWriter(), Map.of("type", "about:blank", "status", estado.value(),
+                "title", estado.getReasonPhrase(), "detail", detalle));
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {

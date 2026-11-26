@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -54,6 +55,23 @@ class PetshopBackendApplicationTests {
 	@Test
 	void iniciaLaApiConBaseEnMemoria() throws Exception {
 		mvc.perform(get(API + "/productos")).andExpect(status().isOk());
+	}
+
+	@Test
+	void devuelve401SinSesionY403SiElRolNoTienePermiso() throws Exception {
+		mvc.perform(post(API + "/productos"))
+				.andExpect(status().isUnauthorized()).andExpect(header().string("WWW-Authenticate", "Bearer"))
+				.andExpect(jsonPath("$.status").value(401));
+		mvc.perform(post(API + "/productos").with(rol("CLIENTE")))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.detail").value("No tienes permiso"));
+		mvc.perform(get(API + "/pedidos").with(rol("CLIENTE"))).andExpect(status().isForbidden());
+		mvc.perform(get(API + "/productos").with(rol("VENDEDOR"))).andExpect(status().isOk());
+		mvc.perform(get(API + "/categorias")).andExpect(status().isOk());
+		mvc.perform(get(API + "/categorias").with(rol("VENDEDOR"))).andExpect(status().isForbidden());
+		mvc.perform(get(API + "/usuarios").with(rol("VENDEDOR"))).andExpect(status().isForbidden());
+		mvc.perform(get(API + "/auth/perfil").with(rol("VENDEDOR"))).andExpect(status().isForbidden());
+		mvc.perform(put(API + "/productos/1").with(rol("VENDEDOR"))).andExpect(status().isForbidden());
+		mvc.perform(post(API + "/pedidos/1/pagar-simulado").with(rol("VENDEDOR"))).andExpect(status().isForbidden());
 	}
 
 	@Test

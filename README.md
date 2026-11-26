@@ -70,10 +70,14 @@ En Swagger, abre `POST /api/v1/auth/login`, usa una cuenta de la tabla y copia e
 
 | Acción | Sin sesión | Cliente | Vendedor | Administrador |
 | --- | --- | --- | --- | --- |
-| Consultar productos y categorías públicas | Sí | Sí | Sí | Sí |
-| Consultar el propio perfil | — | Sí | Sí | Sí |
+| Consultar productos | Sí | Sí | Sí | Sí |
+| Consultar categorías de la tienda | Sí | Sí | — | Sí |
+| Consultar el propio perfil | — | Sí | — | Sí |
+| Renovar una sesión vigente | — | Sí | Sí | Sí |
 | Cambiar productos y categorías o gestionar usuarios | — | — | — | Sí |
 | Crear un pedido, pagarlo y ver sus propias compras | — | Sí | — | — |
 | Ver todos los pedidos y su detalle | — | — | Sí | Sí |
+
+El pago simulado se ofrece con el perfil `dev` (el predeterminado para el trabajo local). Para conservar las boletas, los pedidos no tienen edición ni eliminación directa: se crean, se consultan y el pago cambia su estado.
 
 Al terminar, detén el backend y Vite con `Ctrl+C` en sus terminales.
