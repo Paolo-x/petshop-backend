@@ -45,7 +45,7 @@ public record CrearPedidoRequest(
         String indicaciones,
 
         @NotEmpty(message = "El pedido debe tener productos")
-        List<@Valid LineaPedidoRequest> lineas
+        List<@NotNull @Valid LineaPedidoRequest> lineas
 
 ) {
 

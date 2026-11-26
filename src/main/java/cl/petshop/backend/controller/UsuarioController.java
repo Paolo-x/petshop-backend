@@ -2,6 +2,7 @@
 package cl.petshop.backend.controller;
 
 import cl.petshop.backend.dto.UsuarioAdminRequest;
+import cl.petshop.backend.dto.UsuarioResponse;
 import cl.petshop.backend.model.Usuario;
 import cl.petshop.backend.service.UsuarioService;
 
@@ -24,43 +25,43 @@ public class UsuarioController {
 
     // Listar todos los usuarios
     @GetMapping
-    public List<Usuario> listar() {
-        return usuarioService.listar();
+    public List<UsuarioResponse> listar() {
+        return usuarioService.listar().stream().map(UsuarioResponse::desde).toList();
     }
 
     // Buscar usuario por ID
     @GetMapping("/{id}")
-    public Usuario buscarPorId(@PathVariable Long id) {
-        return usuarioService.buscarPorId(id);
+    public UsuarioResponse buscarPorId(@PathVariable Long id) {
+        return UsuarioResponse.desde(usuarioService.buscarPorId(id));
     }
 
     // Crear usuario desde administracion
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Usuario crear(
+    public UsuarioResponse crear(
             @Valid @RequestBody UsuarioAdminRequest datos) {
 
         Usuario usuario = convertirAUsuario(datos);
 
-        return usuarioService.crearPorAdministrador(
+        return UsuarioResponse.desde(usuarioService.crearPorAdministrador(
                 usuario,
                 datos.contrasena()
-        );
+        ));
     }
 
     // Actualizar usuario
     @PutMapping("/{id}")
-    public Usuario actualizar(
+    public UsuarioResponse actualizar(
             @PathVariable Long id,
             @Valid @RequestBody UsuarioAdminRequest datos) {
 
         Usuario usuario = convertirAUsuario(datos);
 
-        return usuarioService.actualizarPorAdministrador(
+        return UsuarioResponse.desde(usuarioService.actualizarPorAdministrador(
                 id,
                 usuario,
                 datos.contrasena()
-        );
+        ));
     }
 
     // Eliminar usuario

@@ -4,6 +4,7 @@ package cl.petshop.backend.controller;
 import cl.petshop.backend.dto.AuthResponse;
 import cl.petshop.backend.dto.LoginRequest;
 import cl.petshop.backend.dto.RegistroRequest;
+import cl.petshop.backend.dto.UsuarioResponse;
 import cl.petshop.backend.model.Usuario;
 import cl.petshop.backend.security.JwtService;
 import cl.petshop.backend.service.UsuarioService;
@@ -34,7 +35,7 @@ public class AuthController {
     // Registrar un nuevo cliente
     @PostMapping("/registro")
     @ResponseStatus(HttpStatus.CREATED)
-    public Usuario registrar(
+    public UsuarioResponse registrar(
             @Valid @RequestBody RegistroRequest datos) {
 
         Usuario usuario = new Usuario();
@@ -44,10 +45,10 @@ public class AuthController {
         usuario.setApellidos(datos.apellidos());
         usuario.setCorreo(datos.correo());
 
-        return usuarioService.registrarCliente(
+        return UsuarioResponse.desde(usuarioService.registrarCliente(
                 usuario,
                 datos.contrasena()
-        );
+        ));
     }
 
     // Iniciar sesion
@@ -98,11 +99,11 @@ public class AuthController {
 
     // Consultar el perfil del usuario autenticado
     @GetMapping("/perfil")
-    public Usuario perfil(
+    public UsuarioResponse perfil(
             @AuthenticationPrincipal Jwt jwt) {
 
-        return usuarioService.buscarPorCorreo(
+        return UsuarioResponse.desde(usuarioService.buscarPorCorreo(
                 jwt.getSubject()
-        );
+        ));
     }
 }

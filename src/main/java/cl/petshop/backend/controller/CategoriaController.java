@@ -1,8 +1,10 @@
 
 package cl.petshop.backend.controller;
 
+import cl.petshop.backend.dto.CategoriaRequest;
 import cl.petshop.backend.model.Categoria;
 import cl.petshop.backend.service.CategoriaService;
+import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -34,10 +36,10 @@ public class CategoriaController {
     // Crear una categoria
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Categoria crear(@RequestBody Categoria categoria) {
+    public Categoria crear(@Valid @RequestBody CategoriaRequest categoria) {
         return categoriaService.crear(
-                categoria.getNombre(),
-                categoria.getImagen()
+                categoria.nombre(),
+                categoria.imagen()
         );
     }
 
@@ -45,12 +47,12 @@ public class CategoriaController {
     @PutMapping("/{id}")
     public Categoria actualizar(
             @PathVariable Long id,
-            @RequestBody Categoria categoria) {
+            @Valid @RequestBody CategoriaRequest categoria) {
 
         return categoriaService.actualizar(
                 id,
-                categoria.getNombre(),
-                categoria.getImagen()
+                categoria.nombre(),
+                categoria.imagen()
         );
     }
 

@@ -1,8 +1,10 @@
 
 package cl.petshop.backend.service;
 
+import cl.petshop.backend.dto.ProductoRequest;
 import cl.petshop.backend.model.Categoria;
 import cl.petshop.backend.model.Producto;
+import cl.petshop.backend.repository.DetallePedidoRepository;
 import cl.petshop.backend.repository.ProductoRepository;
 
 import org.springframework.http.HttpStatus;
@@ -18,13 +20,16 @@ public class ProductoService {
 
     private final ProductoRepository productoRepository;
     private final CategoriaService categoriaService;
+    private final DetallePedidoRepository detallePedidoRepository;
 
     public ProductoService(
             ProductoRepository productoRepository,
-            CategoriaService categoriaService) {
+            CategoriaService categoriaService,
+            DetallePedidoRepository detallePedidoRepository) {
 
         this.productoRepository = productoRepository;
         this.categoriaService = categoriaService;
+        this.detallePedidoRepository = detallePedidoRepository;
     }
 
     // Listar todos los productos
@@ -46,6 +51,7 @@ public class ProductoService {
     // Listar productos por categoria
     @Transactional(readOnly = true)
     public List<Producto> listarPorCategoria(Long categoriaId) {
+        categoriaService.buscarPorId(categoriaId);
         return productoRepository.findByCategoriaId(categoriaId);
     }
 
@@ -63,13 +69,12 @@ public class ProductoService {
 
     // Crear producto
     @Transactional
-    public Producto crear(Producto datos) {
+    public Producto crear(ProductoRequest datos) {
 
-        validarDatos(datos);
-        validarCodigo(datos.getCodigo(), null);
+        validarCodigo(datos.codigo(), null);
 
         Categoria categoria = categoriaService.buscarPorId(
-                datos.getCategoria().getId()
+                datos.categoria().id()
         );
 
         Producto producto = new Producto();
@@ -80,15 +85,14 @@ public class ProductoService {
 
     // Actualizar producto
     @Transactional
-    public Producto actualizar(Long id, Producto datos) {
+    public Producto actualizar(Long id, ProductoRequest datos) {
 
         Producto producto = buscarPorId(id);
 
-        validarDatos(datos);
-        validarCodigo(datos.getCodigo(), id);
+        validarCodigo(datos.codigo(), id);
 
         Categoria categoria = categoriaService.buscarPorId(
-                datos.getCategoria().getId()
+                datos.categoria().id()
         );
 
         copiarDatos(producto, datos, categoria);
@@ -102,6 +106,10 @@ public class ProductoService {
 
         Producto producto = buscarPorId(id);
 
+        if (detallePedidoRepository.existsByProductoId(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "No se puede eliminar un producto que figura en un pedido");
+        }
         productoRepository.delete(producto);
     }
 
@@ -122,119 +130,24 @@ public class ProductoService {
                 });
     }
 
-    // Validar datos del producto
-    private void validarDatos(Producto datos) {
-
-        if (datos == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Los datos del producto son obligatorios"
-            );
-        }
-
-        if (datos.getCodigo() == null ||
-                datos.getCodigo().trim().length() < 3 ||
-                datos.getCodigo().trim().length() > 50) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "El codigo debe tener entre 3 y 50 caracteres"
-            );
-        }
-
-        if (datos.getNombre() == null ||
-                datos.getNombre().isBlank() ||
-                datos.getNombre().trim().length() > 100) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "El nombre es obligatorio y no puede superar 100 caracteres"
-            );
-        }
-
-        if (datos.getDescripcion() != null &&
-                datos.getDescripcion().length() > 500) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "La descripcion no puede superar 500 caracteres"
-            );
-        }
-
-        if (datos.getPrecio() == null ||
-                datos.getPrecio().compareTo(BigDecimal.ZERO) <= 0 ||
-                datos.getPrecio().stripTrailingZeros().scale() > 2 ||
-                datos.getPrecio().stripTrailingZeros().precision()
-                - datos.getPrecio().stripTrailingZeros().scale() > 10) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "El precio debe ser positivo y tener maximo 2 decimales"
-            );
-        }
-
-        if (datos.getOferta() != null &&
-                (datos.getOferta() < 0 || datos.getOferta() > 100)) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "La oferta debe estar entre 0 y 100"
-            );
-        }
-
-        if (datos.getStock() == null || datos.getStock() < 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "El stock no puede ser negativo"
-            );
-        }
-
-        if (datos.getStockCritico() != null &&
-                datos.getStockCritico() < 0) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "El stock critico no puede ser negativo"
-            );
-        }
-
-        if (datos.getImagen() != null &&
-                datos.getImagen().length() > 500) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "La ruta de imagen no puede superar 500 caracteres"
-            );
-        }
-
-        if (datos.getCategoria() == null ||
-                datos.getCategoria().getId() == null) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Debes seleccionar una categoria"
-            );
-        }
-    }
-
     // Copiar los datos validados
     private void copiarDatos(
             Producto producto,
-            Producto datos,
+            ProductoRequest datos,
             Categoria categoria) {
 
-        producto.setCodigo(datos.getCodigo().trim());
-        producto.setNombre(datos.getNombre().trim());
-        producto.setDescripcion(limpiarTexto(datos.getDescripcion()));
-        producto.setPrecio(datos.getPrecio());
+        producto.setCodigo(datos.codigo());
+        producto.setNombre(datos.nombre());
+        producto.setDescripcion(limpiarTexto(datos.descripcion()));
+        producto.setPrecio(datos.precio());
         producto.setOferta(
-                datos.getOferta() == null ? 0 : datos.getOferta()
+                datos.oferta() == null ? 0 : datos.oferta()
         );
-        producto.setStock(datos.getStock());
+        producto.setStock(datos.stock());
         producto.setStockCritico(
-                datos.getStockCritico() == null ? 0 : datos.getStockCritico()
+                datos.stockCritico() == null ? 0 : datos.stockCritico()
         );
-        producto.setImagen(limpiarTexto(datos.getImagen()));
+        producto.setImagen(limpiarTexto(datos.imagen()));
         producto.setCategoria(categoria);
     }
 
