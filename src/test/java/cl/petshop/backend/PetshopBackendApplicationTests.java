@@ -87,6 +87,28 @@ class PetshopBackendApplicationTests {
 	}
 
 	@Test
+	void swaggerDescribeTodasLasOperacionesYSusPermisos() throws Exception {
+		mvc.perform(get("/swagger-ui.html")).andExpect(status().is3xxRedirection());
+		var respuesta = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
+				.andReturn().getResponse();
+		var rutas = json.readTree(respuesta.getContentAsString()).path("paths");
+		assertThat(rutas.size()).isEqualTo(16);
+		int operaciones = 0;
+		for (var ruta : rutas) {
+			for (var operacion : ruta) {
+				assertThat(operacion.path("summary").asString()).isNotBlank();
+				assertThat(operacion.path("responses").size()).isPositive();
+				operaciones++;
+			}
+		}
+		assertThat(operaciones).isEqualTo(26);
+		assertThat(rutas.path(API + "/auth/login").path("post").has("security")).isFalse();
+		assertThat(rutas.path(API + "/auth/refresh").path("post").path("security").get(0).has("bearerAuth")).isTrue();
+		assertThat(rutas.path(API + "/pedidos/{id}/pagar-simulado").path("post").path("responses").has("409")).isTrue();
+	}
+
+	@Test
 	void administraProductosYCategoriasSinAceptarDatosIncorrectos() throws Exception {
 		mvc.perform(post(API + "/categorias").with(rol("ADMINISTRADOR"))
 				.contentType(MediaType.APPLICATION_JSON).content("{}"))
