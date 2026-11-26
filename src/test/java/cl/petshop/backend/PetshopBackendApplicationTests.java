@@ -189,6 +189,143 @@ class PetshopBackendApplicationTests {
 				.andExpect(status().isUnauthorized());
 	}
 
+	@Test
+	void descuentaStockSoloAlPagarYPermiteLaConsultaDelVendedor() throws Exception {
+		String correo = "compras@petshop.test";
+		registrarCliente("90.000.013-8", correo);
+		String cliente = iniciarSesion(correo);
+		long productoId = crearProducto("PAGO-OK", 2500, 7);
+		long pedidoId = crearPedido(cliente, productoId, 2);
+		verificarStock(productoId, 7);
+
+		mvc.perform(post(API + "/pedidos/{id}/pagar-simulado", pedidoId).header("Authorization", "Bearer " + cliente))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("pagada"))
+				.andExpect(jsonPath("$.total").value(5000)).andExpect(jsonPath("$.lineas[0].cantidad").value(2));
+		verificarStock(productoId, 5);
+		mvc.perform(post(API + "/pedidos/{id}/pagar-simulado", pedidoId).header("Authorization", "Bearer " + cliente))
+				.andExpect(status().isConflict());
+		verificarStock(productoId, 5);
+
+		mvc.perform(get(API + "/pedidos/mis-pedidos").header("Authorization", "Bearer " + cliente))
+				.andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(pedidoId));
+		String correoVendedor = "pedidos-vendedor@petshop.test";
+		crearUsuario("90.000.014-6", correoVendedor, "VENDEDOR");
+		String vendedor = iniciarSesion(correoVendedor);
+		mvc.perform(get(API + "/pedidos").header("Authorization", "Bearer " + vendedor)).andExpect(status().isOk());
+		mvc.perform(get(API + "/pedidos/{id}", pedidoId).header("Authorization", "Bearer " + vendedor))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.id").value(pedidoId));
+		mvc.perform(delete(API + "/productos/{id}", productoId).with(rol("ADMINISTRADOR")))
+				.andExpect(status().isConflict());
+	}
+
+	@Test
+	void rechazaComprasSinStockYNoMuestraPedidosAOtrosClientes() throws Exception {
+		String correo = "sin-stock@petshop.test";
+		registrarCliente("90.000.015-4", correo);
+		String cliente = iniciarSesion(correo);
+		long productoId = crearProducto("STOCK-LIMITADO", 9000, 1);
+		mvc.perform(post(API + "/pedidos").header("Authorization", "Bearer " + cliente)
+				.contentType(MediaType.APPLICATION_JSON).content(datosPedido(productoId, 2)))
+				.andExpect(status().isConflict()).andExpect(jsonPath("$.detail").isNotEmpty());
+		mvc.perform(get(API + "/pedidos/mis-pedidos").header("Authorization", "Bearer " + cliente))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+		long primerPedido = crearPedido(cliente, productoId, 1);
+		long segundoPedido = crearPedido(cliente, productoId, 1);
+
+		String correoAjeno = "pedido-ajeno@petshop.test";
+		registrarCliente("90.000.016-2", correoAjeno);
+		String ajeno = iniciarSesion(correoAjeno);
+		mvc.perform(get(API + "/pedidos/{id}", primerPedido).header("Authorization", "Bearer " + ajeno))
+				.andExpect(status().isForbidden());
+		mvc.perform(post(API + "/pedidos/{id}/pagar-simulado", primerPedido).header("Authorization", "Bearer " + ajeno))
+				.andExpect(status().isForbidden());
+
+		mvc.perform(post(API + "/pedidos/{id}/pagar-simulado", primerPedido).header("Authorization", "Bearer " + cliente))
+				.andExpect(status().isOk());
+		mvc.perform(post(API + "/pedidos/{id}/pagar-simulado", segundoPedido).header("Authorization", "Bearer " + cliente))
+				.andExpect(status().isConflict());
+		verificarStock(productoId, 0);
+	}
+
+	@Test
+	void conservaElStockCuandoLaPasarelaRechazaElMonto() throws Exception {
+		String correo = "pago-fallido@petshop.test";
+		registrarCliente("90.000.017-0", correo);
+		String cliente = iniciarSesion(correo);
+		long productoId = crearProducto("PAGO-FALLIDO", 110000, 3);
+		long pedidoId = crearPedido(cliente, productoId, 1);
+		mvc.perform(post(API + "/pedidos/{id}/pagar-simulado", pedidoId).header("Authorization", "Bearer " + cliente))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("fallida"));
+		verificarStock(productoId, 3);
+	}
+
+	@Test
+	void administraUsuariosSinExponerLaClave() throws Exception {
+		String correo = "usuario-admin@petshop.test";
+		long id = crearUsuario("90.000.018-9", correo, "VENDEDOR");
+		mvc.perform(get(API + "/usuarios/{id}", id).with(rol("ADMINISTRADOR")))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.correo").value(correo))
+				.andExpect(jsonPath("$.contrasenaHash").doesNotExist());
+		String token = iniciarSesion(correo);
+		mvc.perform(put(API + "/usuarios/{id}", id).with(rol("ADMINISTRADOR"))
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"run":"90.000.018-9","nombre":"Nueva","apellidos":"Cuenta","correo":"%s","rol":"CLIENTE"}
+						""".formatted(correo)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.nombre").value("Nueva"));
+		mvc.perform(post(API + "/auth/refresh").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.rol").value("CLIENTE"));
+		mvc.perform(delete(API + "/usuarios/{id}", id).with(rol("ADMINISTRADOR"))).andExpect(status().isNoContent());
+		mvc.perform(get(API + "/usuarios/{id}", id).with(rol("ADMINISTRADOR"))).andExpect(status().isNotFound());
+		mvc.perform(post(API + "/auth/refresh").header("Authorization", "Bearer " + token))
+				.andExpect(status().isUnauthorized());
+	}
+
+	private long crearProducto(String codigo, int precio, int stock) throws Exception {
+		var categoria = mvc.perform(post(API + "/categorias").with(rol("ADMINISTRADOR"))
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"nombre":"Categoría %s"}
+						""".formatted(codigo)))
+				.andExpect(status().isCreated()).andReturn().getResponse();
+		long categoriaId = json.readTree(categoria.getContentAsString()).path("id").asLong();
+		var producto = mvc.perform(post(API + "/productos").with(rol("ADMINISTRADOR"))
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"codigo":"%s","nombre":"Producto de prueba","categoria":{"id":%d},"precio":%d,"stock":%d}
+						""".formatted(codigo, categoriaId, precio, stock)))
+				.andExpect(status().isCreated()).andReturn().getResponse();
+		return json.readTree(producto.getContentAsString()).path("id").asLong();
+	}
+
+	private long crearUsuario(String run, String correo, String rol) throws Exception {
+		var respuesta = mvc.perform(post(API + "/usuarios").with(rol("ADMINISTRADOR"))
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"run":"%s","nombre":"Prueba","apellidos":"PetShop","correo":"%s","contrasena":"ClaveDemo21!","rol":"%s"}
+						""".formatted(run, correo, rol)))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.rol").value(rol))
+				.andExpect(jsonPath("$.contrasenaHash").doesNotExist()).andReturn().getResponse();
+		return json.readTree(respuesta.getContentAsString()).path("id").asLong();
+	}
+
+	private long crearPedido(String token, long productoId, int cantidad) throws Exception {
+		var pedido = mvc.perform(post(API + "/pedidos").header("Authorization", "Bearer " + token)
+				.contentType(MediaType.APPLICATION_JSON).content(datosPedido(productoId, cantidad)))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.estado").value("pendiente"))
+				.andReturn().getResponse();
+		return json.readTree(pedido.getContentAsString()).path("id").asLong();
+	}
+
+	private String datosPedido(long productoId, int cantidad) {
+		return """
+				{"nombreEntrega":"Persona","apellidosEntrega":"De prueba","correoEntrega":"entrega@petshop.test",
+				 "calle":"Calle de prueba 123","region":"Metropolitana","comuna":"Santiago",
+				 "lineas":[{"productoId":%d,"cantidad":%d}]}
+				""".formatted(productoId, cantidad);
+	}
+
+	private void verificarStock(long productoId, int stock) throws Exception {
+		mvc.perform(get(API + "/productos/{id}", productoId)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.stock").value(stock));
+	}
+
 	private void registrarCliente(String run, String correo) throws Exception {
 		mvc.perform(post(API + "/auth/registro").contentType(MediaType.APPLICATION_JSON)
 				.content("""
