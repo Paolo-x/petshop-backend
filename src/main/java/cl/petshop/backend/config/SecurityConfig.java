@@ -7,6 +7,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -20,9 +21,13 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.springframework.security.authorization.AuthorityAuthorizationManager.hasRole;
@@ -39,7 +44,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, UrlBasedCorsConfigurationSource corsApi)
             throws Exception {
 
         AuthenticationEntryPoint sinSesion = (solicitud, respuesta, error) -> {
@@ -51,6 +56,7 @@ public class SecurityConfig {
 
         http
             .csrf(AbstractHttpConfigurer::disable)
+            .cors(cors -> cors.configurationSource(corsApi))
 
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -165,6 +171,22 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable);
 
         return http.build();
+    }
+
+    @Bean
+    public UrlBasedCorsConfigurationSource corsApi(@Value("${petshop.cors.origenes}") String origenes) {
+        List<String> permitidos = Arrays.stream(origenes.split(","))
+                .map(String::trim).filter(origen -> !origen.isEmpty()).toList();
+        if (permitidos.stream().anyMatch(origen -> origen.contains("*"))) {
+            throw new IllegalArgumentException("Indica orígenes concretos en petshop.cors.origenes");
+        }
+        CorsConfiguration cors = new CorsConfiguration();
+        cors.setAllowedOrigins(permitidos);
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        cors.setAllowedHeaders(List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE));
+        UrlBasedCorsConfigurationSource fuente = new UrlBasedCorsConfigurationSource();
+        fuente.registerCorsConfiguration("/api/v1/**", cors);
+        return fuente;
     }
 
     private void responderError(HttpServletResponse respuesta, HttpStatus estado, String detalle) throws IOException {

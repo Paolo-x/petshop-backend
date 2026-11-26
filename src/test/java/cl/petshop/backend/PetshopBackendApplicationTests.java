@@ -75,6 +75,18 @@ class PetshopBackendApplicationTests {
 	}
 
 	@Test
+	void admiteSolicitudesDelOrigenConfiguradoEnElNavegador() throws Exception {
+		mvc.perform(options(API + "/productos").header("Origin", "http://localhost:5173")
+				.header("Access-Control-Request-Method", "POST")
+				.header("Access-Control-Request-Headers", "authorization,content-type"))
+				.andExpect(status().isOk())
+				.andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+		mvc.perform(options(API + "/productos").header("Origin", "http://localhost:5174")
+				.header("Access-Control-Request-Method", "POST"))
+				.andExpect(status().isForbidden()).andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+	}
+
+	@Test
 	void administraProductosYCategoriasSinAceptarDatosIncorrectos() throws Exception {
 		mvc.perform(post(API + "/categorias").with(rol("ADMINISTRADOR"))
 				.contentType(MediaType.APPLICATION_JSON).content("{}"))

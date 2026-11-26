@@ -64,6 +64,8 @@ La carga agrega cuatro categorías, cinco productos con stock y una cuenta por r
 
 Para abrir React, entra a `Proyecto_2/react-app`, ejecuta `npm install` y `npm run dev`, y visita <http://localhost:5173>. Vite envía las solicitudes de `/api` al backend en el puerto 8080.
 
+Si el navegador llama a la API directamente, el origen autorizado por defecto es `http://localhost:5173`. Se cambia con `petshop.cors.origenes` en `application.properties`, usando orígenes concretos separados por comas.
+
 En Swagger, abre `POST /api/v1/auth/login`, usa una cuenta de la tabla y copia el valor `token` de la respuesta. Pégalo en **Authorize** para probar las rutas protegidas.
 
 ### Permisos de la API
