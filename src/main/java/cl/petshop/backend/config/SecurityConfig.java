@@ -42,6 +42,8 @@ public class SecurityConfig {
                     "/api/v1/auth/login"
                 ).permitAll()
 
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").authenticated()
+
                 // Perfil del usuario autenticado
                 .requestMatchers(
                     HttpMethod.GET,

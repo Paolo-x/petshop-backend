@@ -1,5 +1,6 @@
 package cl.petshop.backend;
 
+import cl.petshop.backend.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,8 +14,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Base64;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -26,7 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.password=",
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.show-sql=false"
+        "spring.jpa.show-sql=false",
+        "petshop.jwt.duracion=PT10M"
 })
 @AutoConfigureMockMvc
 class PetshopBackendApplicationTests {
@@ -35,6 +39,8 @@ class PetshopBackendApplicationTests {
 	private MockMvc mvc;
 	@Autowired
 	private JsonMapper json;
+	@Autowired
+	private JwtService jwtService;
 
 	private static final String API = "/api/v1";
 
@@ -94,5 +100,58 @@ class PetshopBackendApplicationTests {
 
 	private JwtRequestPostProcessor rol(String rol) {
 		return jwt().authorities(new SimpleGrantedAuthority("ROLE_" + rol));
+	}
+
+	@Test
+	void iniciaSesionYRenuevaConUnBearerValido() throws Exception {
+		String correo = "sesion@petshop.test";
+		registrarCliente("90.000.011-1", correo);
+		String primero = iniciarSesion(correo);
+		var original = jwtService.obtenerDecodificador().decode(primero);
+		assertThat(Duration.between(original.getIssuedAt(), original.getExpiresAt())).isEqualTo(Duration.ofMinutes(10));
+		assertThat(original.getClaimAsString("rol")).isEqualTo("CLIENTE");
+
+		var respuesta = mvc.perform(post(API + "/auth/refresh").header("Authorization", "Bearer " + primero))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.rol").value("CLIENTE"))
+				.andReturn().getResponse();
+		String nuevo = json.readTree(respuesta.getContentAsString()).path("token").asString();
+		assertThat(nuevo).isNotBlank().isNotEqualTo(primero);
+		var renovado = jwtService.obtenerDecodificador().decode(nuevo);
+		assertThat(renovado.getClaims().get("inicioSesion")).isEqualTo(original.getClaims().get("inicioSesion"));
+		mvc.perform(get(API + "/auth/perfil").header("Authorization", "Bearer " + nuevo))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.correo").value(correo))
+				.andExpect(jsonPath("$.contrasenaHash").doesNotExist());
+	}
+
+	@Test
+	void rechazaClaveIncorrectaYNoRenuevaSinUnaSesionValida() throws Exception {
+		String correo = "clave@petshop.test";
+		registrarCliente("90.000.012-K", correo);
+		mvc.perform(post(API + "/auth/login").contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"correo":"%s","contrasena":"ClaveIncorrecta"}
+						""".formatted(correo)))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.detail").isNotEmpty());
+		mvc.perform(post(API + "/auth/refresh")).andExpect(status().isUnauthorized());
+		mvc.perform(post(API + "/auth/refresh").header("Authorization", "Bearer sesion-invalida"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	private void registrarCliente(String run, String correo) throws Exception {
+		mvc.perform(post(API + "/auth/registro").contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"run":"%s","nombre":"Prueba","apellidos":"PetShop","correo":"%s","contrasena":"ClaveDemo21!"}
+						""".formatted(run, correo)))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.rol").value("CLIENTE"))
+				.andExpect(jsonPath("$.contrasena").doesNotExist()).andExpect(jsonPath("$.contrasenaHash").doesNotExist());
+	}
+
+	private String iniciarSesion(String correo) throws Exception {
+		var respuesta = mvc.perform(post(API + "/auth/login").contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"correo":"%s","contrasena":"ClaveDemo21!"}
+						""".formatted(correo)))
+				.andExpect(status().isOk()).andReturn().getResponse();
+		return json.readTree(respuesta.getContentAsString()).path("token").asString();
 	}
 }

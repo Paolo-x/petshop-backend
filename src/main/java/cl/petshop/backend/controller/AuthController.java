@@ -84,8 +84,32 @@ public class AuthController {
             );
         }
 
-        String token = jwtService.generarToken(usuario);
+        return respuestaDeSesion(usuario, jwtService.generarToken(usuario));
+    }
 
+    @PostMapping("/refresh")
+    public AuthResponse renovar(@AuthenticationPrincipal Jwt jwt) {
+        // Se consulta la cuenta real para no renovar una cuenta eliminada ni un rol antiguo.
+        Number id = jwt.getClaim("id");
+        if (id == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Vuelve a iniciar sesión");
+        }
+        Usuario usuario;
+        try {
+            usuario = usuarioService.buscarPorId(id.longValue());
+        } catch (ResponseStatusException error) {
+            if (error.getStatusCode().value() == 404) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La cuenta ya no está disponible");
+            }
+            throw error;
+        }
+        if (!usuario.getCorreo().equals(jwt.getSubject())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Vuelve a iniciar sesión");
+        }
+        return respuestaDeSesion(usuario, jwtService.renovarToken(usuario, jwt));
+    }
+
+    private AuthResponse respuestaDeSesion(Usuario usuario, String token) {
         return new AuthResponse(
                 token,
                 "Bearer",

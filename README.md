@@ -37,6 +37,7 @@ bash -c '
 
 - `DB_PASSWORD` es la contraseña de `petshop_app`. Al escribirla en el comando no se muestra en pantalla.
 - `JWT_SECRET` es la clave que firma los JWT. Debe venir en Base64 y representar al menos 32 bytes. El ejemplo genera 48 bytes al azar para una sesión local de prueba; al cambiar la clave, las sesiones anteriores dejan de ser válidas.
+- Cada JWT dura hasta 1 hora (`petshop.jwt.duracion=PT1H`). `POST /api/v1/auth/refresh` recibe el JWT todavía válido en `Authorization: Bearer …` y devuelve uno nuevo, con los permisos actuales. El límite desde el inicio de sesión es de 8 horas (`petshop.jwt.duracion-maxima=PT8H`); después hay que volver a entrar.
 
 El primer arranque crea las tablas faltantes con Hibernate (`ddl-auto=update`). La API queda en <http://localhost:8080/api/v1> y Swagger en <http://localhost:8080/swagger-ui.html>.
 

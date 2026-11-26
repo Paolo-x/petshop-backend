@@ -4,24 +4,40 @@ package cl.petshop.backend.security;
 import cl.petshop.backend.model.Usuario;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.UUID;
 
 @Service
 public class JwtService {
 
+    private static final String EMISOR = "petshop-backend";
     private final JwtEncoder jwtEncoder;
     private final JwtDecoder jwtDecoder;
+    private final Duration duracion;
+    private final Duration duracionMaxima;
 
-    public JwtService(@Value("${JWT_SECRET}") String secreto) {
+    public JwtService(@Value("${JWT_SECRET}") String secreto,
+                      @Value("${petshop.jwt.duracion}") String duracion,
+                      @Value("${petshop.jwt.duracion-maxima}") String duracionMaxima) {
+
+        this.duracion = Duration.parse(duracion);
+        this.duracionMaxima = Duration.parse(duracionMaxima);
+        if (this.duracion.getSeconds() < 1 || this.duracionMaxima.compareTo(this.duracion) < 0) {
+            throw new IllegalArgumentException("La duración del JWT debe ser positiva y no superar la sesión máxima");
+        }
 
         byte[] clave;
 
@@ -50,24 +66,49 @@ public class JwtService {
                 .algorithm(MacAlgorithm.HS256)
                 .build();
 
-        this.jwtDecoder = NimbusJwtDecoder
+        NimbusJwtDecoder decoder = NimbusJwtDecoder
                 .withSecretKey(secretKey)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
+        JwtTimestampValidator fechas = new JwtTimestampValidator(Duration.ZERO);
+        fechas.setAllowEmptyExpiryClaim(false);
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(fechas, new JwtIssuerValidator(EMISOR)));
+        this.jwtDecoder = decoder;
     }
 
     // Generar token para un usuario
     public String generarToken(Usuario usuario) {
+        Instant ahora = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        return firmar(usuario, ahora, ahora);
+    }
 
+    // Un JWT válido permite seguir con la sesión, pero no reinicia el límite total.
+    public String renovarToken(Usuario usuario, Jwt anterior) {
+        Number inicio = anterior.getClaim("inicioSesion");
         Instant ahora = Instant.now();
+        if (inicio == null || !ahora.isBefore(anterior.getExpiresAt())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Vuelve a iniciar sesión");
+        }
+        Instant fechaInicio = Instant.ofEpochSecond(inicio.longValue());
+        if (!ahora.isBefore(fechaInicio.plus(duracionMaxima))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La sesión alcanzó su duración máxima");
+        }
+        return firmar(usuario, ahora.truncatedTo(ChronoUnit.SECONDS), fechaInicio);
+    }
+
+    private String firmar(Usuario usuario, Instant ahora, Instant inicioSesion) {
+        Instant vence = ahora.plus(duracion);
+        Instant limite = inicioSesion.plus(duracionMaxima);
 
         JwtClaimsSet datos = JwtClaimsSet.builder()
-                .issuer("petshop-backend")
+                .issuer(EMISOR)
                 .issuedAt(ahora)
-                .expiresAt(ahora.plus(1, ChronoUnit.HOURS))
+                .expiresAt(vence.isBefore(limite) ? vence : limite)
+                .id(UUID.randomUUID().toString())
                 .subject(usuario.getCorreo())
                 .claim("id", usuario.getId())
                 .claim("rol", usuario.getRol().name())
+                .claim("inicioSesion", inicioSesion.getEpochSecond())
                 .build();
 
         JwsHeader encabezado = JwsHeader
