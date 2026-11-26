@@ -11,14 +11,22 @@
 	<groupId>cl.petshop</groupId>
 	<artifactId>petshop-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>PetShop Chile - Backend</name>
+	<description>API de la tienda PetShop Chile para gestionar el catálogo, los usuarios y los pedidos.</description>
 	<url/>
 	<licenses>
 		<license/>
 	</licenses>
 	<developers>
-		<developer/>
+		<developer>
+			<name>Paolo Muñoz</name>
+		</developer>
+		<developer>
+			<name>Vicente Muñoz</name>
+		</developer>
+		<developer>
+			<name>Alexis Valencia</name>
+		</developer>
 	</developers>
 	<scm>
 		<connection/>
