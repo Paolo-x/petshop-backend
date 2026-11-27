@@ -27,21 +27,7 @@ MySQL muestra la contraseña generada al crear el usuario. Guárdala fuera del r
 
 Abrir PowerShell en la carpeta petshop-backend y ejecutar:
 
-$env:SPRING_DATASOURCE_USERNAME = "petshop_app"
-
-$clave = Read-Host "Contraseña de MySQL" -AsSecureString
-$env:DB_PASSWORD = [System.Net.NetworkCredential]::new("", $clave).Password
-Remove-Variable clave
-
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$bytes = New-Object byte[] 48
-$rng.GetBytes($bytes)
-$env:JWT_SECRET = [Convert]::ToBase64String($bytes)
-$rng.Dispose()
-
-.\mvnw.cmd spring-boot:run
-
-`DB_PASSWORD` es la contraseña de MySQL y `JWT_SECRET` es la clave de firma en Base64 (mínimo 32 bytes al decodificarla). La clave del ejemplo es temporal; cambiarla invalida las sesiones anteriores. Hibernate prepara las tablas faltantes en el primer inicio. El pago simulado está habilitado con el perfil `dev`, que es el predeterminado. Si se necesita autorizar otro origen explícito, ajusta `petshop.cors.origenes` en [`application.properties`](src/main/resources/application.properties).
+$env:SPRING_DATASOURCE_USERNAME="petshop_app"; $clave=Read-Host "Contraseña de MySQL" -AsSecureString; $env:DB_PASSWORD=[System.Net.NetworkCredential]::new("",$clave).Password; Remove-Variable clave; $rng=[System.Security.Cryptography.RandomNumberGenerator]::Create(); $bytes=New-Object byte[] 48; $rng.GetBytes($bytes); $env:JWT_SECRET=[Convert]::ToBase64String($bytes); $rng.Dispose(); .\mvnw.cmd spring-boot:run
 
 ## 3. Cargar los datos de prueba
 
