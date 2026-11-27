@@ -27,7 +27,7 @@ MySQL muestra la contraseña generada al crear el usuario. Guárdala fuera del r
 
 Abrir PowerShell en la carpeta petshop-backend y ejecutar:
 
-$env:SPRING_DATASOURCE_USERNAME="petshop_app"; $clave=Read-Host "Contraseña de MySQL" -AsSecureString; $env:DB_PASSWORD=[System.Net.NetworkCredential]::new("",$clave).Password; Remove-Variable clave; $rng=[System.Security.Cryptography.RandomNumberGenerator]::Create(); $bytes=New-Object byte[] 48; $rng.GetBytes($bytes); $env:JWT_SECRET=[Convert]::ToBase64String($bytes); $rng.Dispose(); .\mvnw.cmd spring-boot:run
+Remove-Item Env:SPRING_DATASOURCE_USERNAME -ErrorAction SilentlyContinue; Remove-Item Env:SPRING_DATASOURCE_PASSWORD -ErrorAction SilentlyContinue; .\mvnw.cmd spring-boot:run
 
 ## 3. Cargar los datos de prueba
 
